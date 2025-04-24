@@ -1,13 +1,14 @@
 [tool.poetry]
-name = "python_project_template"
+name = "ai_agent"
 version = "0.1.0"
-description = "A template for python projects"
+description = "Building an AI agent with LlamaIndex"
 authors = ["Andrea Giansanti <andreagiansanti90@gmail.com>"]
 license = "MIT License"
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 pre-commit = "^3.6.0"
 sphinx-rtd-theme = "^2.0.0"
 
