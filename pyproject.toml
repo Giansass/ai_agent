@@ -13,6 +13,8 @@ pre-commit = "^3.6.0"
 sphinx-rtd-theme = "^2.0.0"
 llama-index = "^0.12.33"
 llama-index-llms-gemini = "^0.4.14"
+python-dotenv = "^1.1.0"
+llama-index-llms-google-genai = "^0.1.7"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"
