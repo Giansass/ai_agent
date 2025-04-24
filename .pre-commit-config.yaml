@@ -1,0 +1,135 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: check-ast
+        name: check-ast
+        description: Simply check whether files parse as valid python.
+        stages: [commit]
+    -   id: check-added-large-files
+        name: check-added-large-files
+        description: Prevent giant files from being committed.
+        stages: [commit]
+    -   id: check-json
+        name: check-json
+        description: Attempts to load all json files to verify syntax.
+        stages: [commit]
+    -   id: check-yaml
+        name: check-yaml
+        description: Attempts to load all yaml files to verify syntax.
+        stages: [commit]
+    -   id: check-toml
+        name: check-toml
+        description: Attempts to load all TOML files to verify syntax.
+        stages: [commit]
+    -   id: trailing-whitespace
+        name: trailing-whitespace
+        description: Trims trailing whitespace.
+        stages: [commit]
+    -   id: end-of-file-fixer
+        name: end-of-file-fixer
+        description: Makes sure files end in a newline and only a newline.
+        stages: [commit]
+    -   id: mixed-line-ending
+        name: mixed-line-ending
+        description: Replaces or checks mixed line ending.
+        stages: [commit]
+    -   id: check-docstring-first
+        name: check-docstring-first
+        description: Checks for a common error of placing code before the docstring.
+        stages: [commit]
+    -   id: debug-statements
+        name: debug-statements
+        description: Check for debugger imports and py37+ breakpoint() calls in python source.
+        stages: [commit]
+    -   id: no-commit-to-branch
+        name: no-commit-to-branch
+        description: Protect specific branches from direct checkins.
+        stages: [commit]
+
+-   repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+    -   id: black
+        name: black
+        description: Check PEP8 standards on .py
+        stages: [commit]
+        language_version: python3.10
+        args:
+        -   --line-length=128
+    -   id: black-jupyter
+        name: black-jupyter
+        description: Check PEP8 standards on jupyter
+        stages: [commit]
+        language_version: python3.10
+
+-   repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+    -   id: isort
+        name: isort
+        description: Sort imports
+        stages: [commit]
+        args: [ "--profile", "black" ]
+
+-   repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+    -   id: flake8
+        name: flake8
+        description: Code linter with flake8
+        stages: [commit]
+        args:
+        -   "--max-line-length=128"
+        additional_dependencies:
+        -   flake8-bugbear
+        -   flake8-comprehensions
+        -   flake8-simplify
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+    -   id: mypy
+        name: mypy
+        description: Python static type checker
+        stages: [commit]
+
+-   repo: https://github.com/hadialqattan/pycln
+    rev: v2.4.0
+    hooks:
+    -   id: pycln
+        name: pycln
+        description: Remove unsed import statements
+        stages: [commit]
+        args: [--all]
+
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.0
+    hooks:
+    -   id: pyupgrade
+        name: pyupgrade
+        description: Automatically upgrade syntax for newer versions of Python
+        stages: [commit]
+        args: [--py310-plus]
+
+-   repo: local
+    hooks:
+
+    -   id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [ python ]
+        stages: [commit]
+        args: ["--rcfile=.pylintrc"]
+    -   id: pytest
+        name: pytest
+        description: Perform tests with pytest
+        stages: [push]
+        entry: pytest tests
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
