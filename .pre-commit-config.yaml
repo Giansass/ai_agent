@@ -128,7 +128,7 @@ repos:
         name: pytest
         description: Perform tests with pytest
         stages: [pre-push]
-        entry: pytest tests
+        entry: poetry run pytest tests
         language: system
         types: [python]
         pass_filenames: false
