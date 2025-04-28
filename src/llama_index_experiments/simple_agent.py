@@ -1,17 +1,12 @@
 """src base module."""
-import os
-
-from dotenv import load_dotenv
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.llms.google_genai import GoogleGenAI
 
-load_dotenv()
-
-gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+from src.utils.env_var_loader import GEMINI_APY_KEY
 
 llm = GoogleGenAI(
     model="models/gemini-2.0-flash",
-    api_key=gemini_api_key,
+    api_key=GEMINI_APY_KEY,
 )
 
 
