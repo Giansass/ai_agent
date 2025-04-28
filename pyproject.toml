@@ -15,6 +15,8 @@ llama-index = "^0.12.33"
 llama-index-llms-gemini = "^0.4.14"
 python-dotenv = "^1.1.0"
 llama-index-llms-google-genai = "^0.1.7"
+pipx = "^1.7.1"
+pycln = "^2.5.0"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"
