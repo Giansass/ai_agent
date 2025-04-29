@@ -17,6 +17,9 @@ python-dotenv = "^1.1.0"
 llama-index-llms-google-genai = "^0.1.7"
 pipx = "^1.7.1"
 pycln = "^2.5.0"
+llama-index-tools-arxiv = "^0.3.0"
+llama-index-tools-yahoo-finance = "^0.3.0"
+llama-index-tools-wikipedia = "^0.3.0"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"
