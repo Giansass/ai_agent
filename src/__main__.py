@@ -14,3 +14,8 @@ if __name__ == "__main__":  # pragma: no cover
         from src.llama_index_experiments.yahoo_search_agent import yahoo_agent_execution
 
         asyncio.run(yahoo_agent_execution())
+
+    elif AGENT_TO_BE_EXECUTED == "Simple workflow":
+        from src.llama_index_experiments.my_workflow import workflow_execution
+
+        asyncio.run(workflow_execution())

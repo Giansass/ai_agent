@@ -20,6 +20,7 @@ pycln = "^2.5.0"
 llama-index-tools-arxiv = "^0.3.0"
 llama-index-tools-yahoo-finance = "^0.3.0"
 llama-index-tools-wikipedia = "^0.3.0"
+llama-index-utils-workflow = "^0.3.1"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"
