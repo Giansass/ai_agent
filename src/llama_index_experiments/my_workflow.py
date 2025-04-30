@@ -52,7 +52,7 @@ async def workflow_execution():
     print(response)
 
 
-# if __name__ == "__main__":
-#     from llama_index import draw_all_possible_flows
-#
-#     draw_all_possible_flows(MyWorkflow, filename="basic_workflow.html")
+if __name__ == "__main__":
+    from llama_index.utils.workflow import draw_all_possible_flows
+
+    draw_all_possible_flows(MyWorkflow(), filename="./docs/img/MyWorkFlow.html")
