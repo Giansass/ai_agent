@@ -40,6 +40,14 @@ docformatter = "^1.7.5"
 [tool.poetry.group.code_analyzer.dependencies]
 pylint = "^3.3.0"
 
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.11.7"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = ["E", "F", "UP", "I"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

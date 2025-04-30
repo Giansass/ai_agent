@@ -128,7 +128,7 @@ In order to properly install the template take the following steps:
    ```sh
    source $(poetry env info --path)/bin/activate
    ```
-   
+
 7. Install all pre-commit hooks
    ```sh
    pre-commit install --hook-type pre-commit --hook-type pre-push
