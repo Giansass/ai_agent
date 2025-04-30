@@ -53,6 +53,7 @@ repos:
   rev: 'v0.11.7'
   hooks:
     - id: ruff
+      stages: [pre-commit]
 
 -   repo: https://github.com/pycqa/isort
     rev: 5.13.2
