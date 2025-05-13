@@ -19,3 +19,13 @@ if __name__ == "__main__":  # pragma: no cover
         from src.llama_index_experiments.simple_workflow import workflow_execution
 
         asyncio.run(workflow_execution())
+
+    # elif AGENT_TO_BE_EXECUTED == "HF workflow":
+    #     from src.llama_index_experiments.hf_workflow import workflow_execution
+    #
+    #     asyncio.run(workflow_execution())
+
+    elif AGENT_TO_BE_EXECUTED == "HF simple workflow":
+        from src.llama_index_experiments.hf_simple_workflow import main
+
+        asyncio.run(main())

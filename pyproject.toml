@@ -45,7 +45,7 @@ ruff = "^0.11.7"
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-select = ["E", "F", "UP", "I"]
+lint.select = ["E", "F", "UP", "I"]
 
 [build-system]
 requires = ["poetry-core"]

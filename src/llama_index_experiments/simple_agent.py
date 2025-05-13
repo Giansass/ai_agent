@@ -15,11 +15,15 @@ def add(a: float, b: float) -> float:
     return a + b
 
 
+SYSTEM_PROMPT = """
+You are an agent that can perform basic mathematical operations using tools.
+"""
+
 # Workflow definition
 workflow = FunctionAgent(
     tools=[multiply, add],
     llm=llm,
-    system_prompt="You are an agent that can perform basic mathematical operations using tools.",
+    system_prompt=''.join(SYSTEM_PROMPT.splitlines()),
 )
 
 
