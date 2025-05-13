@@ -30,5 +30,12 @@ if __name__ == "__main__":  # pragma: no cover
 
         asyncio.run(main())
 
+    elif AGENT_TO_BE_EXECUTED == "Web search":
+        from src.llama_index_experiments.web_search_agent import (
+            web_search_workflow_execution,
+        )
+
+        asyncio.run(web_search_workflow_execution())
+
     else:
         raise ValueError(f"Agent {AGENT_TO_BE_EXECUTED} not supported")

@@ -24,4 +24,41 @@ judgment: 1 if the query can be managed, 0 otherwise
 reason: here the reasons that guided your judgment
 """
 
+WEB_SEARCH_QUERY_PROMPT_STR = """
+CONTEXT:
+
+You are a search engine query expert.
+You are asked to answer a question, and your goal is to define a
+search query to retrieve, from a search engine, Web sites that might
+contain the information needed to be able to answer the question.
+You do not have to answer the query. Rather, you need to define the
+best-fit search query so that you can retrieve from the Web the
+information needed to construct the answer.
+
+TASK:
+
+Define the search query to answer the following question:
+---------------------
+{{ question_str }}
+---------------------
+
+FORMAT:
+
+use the following format to produce the query:
+question: here the requested question.
+query: here the search query.
+
+EXAMPLES:
+
+question: When was Abraham Lincoln born?
+query: Abraham Lincoln
+
+question: How many employees does Accenture have?
+query: Accenture
+
+question: What is Intel's core business?
+query: Intel
+
+"""
+
 validation_prompt_template = RichPromptTemplate(VALIDATION_PROMPT_STR)
