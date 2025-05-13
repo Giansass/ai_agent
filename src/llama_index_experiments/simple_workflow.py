@@ -5,9 +5,18 @@ from typing import Union
 from llama_index.core.bridge.pydantic import BaseModel, Field
 from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
 from llama_index.utils.workflow import draw_all_possible_flows
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from phoenix.otel import register
 
 from src.llama_index_experiments.llm_load import llm
+from src.utils.env_var_loader import PHOENIX_COLLECTOR_ENDPOINT
 from src.utils.prompts import validation_prompt_template
+
+tracer_provider = register(
+    endpoint=PHOENIX_COLLECTOR_ENDPOINT,
+    project_name="simple_workflow")
+
+LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 class QueryValidationFormat(BaseModel):
@@ -16,6 +25,18 @@ class QueryValidationFormat(BaseModel):
     query: str = Field(description="The requested query")
     judgment: bool = Field(description="The judgment")
     reason: str = Field(description="The reason for the judgment")
+
+
+class MyStartEvent(StartEvent):
+    """aaa"""
+
+    query: str
+
+
+class MyStopEvent(StopEvent):
+    """aaa"""
+
+    query: str
 
 
 class ChangeQueryEvent(Event):
@@ -41,8 +62,8 @@ class MyWorkflow(Workflow):
 
     @step()
     async def get_query(
-        self, ev: Union[StartEvent, ChangeQueryEvent]
-    ) -> Union[FailedEvent, StopEvent]:
+        self, ev: Union[MyStartEvent, ChangeQueryEvent]
+    ) -> Union[FailedEvent, MyStopEvent]:
         """aaa"""
 
         #
@@ -61,12 +82,12 @@ class MyWorkflow(Workflow):
         if not query_validation.judgment:
             return FailedEvent(error="Failed to answer the query")
 
-        return StopEvent(result="I can answer your query")
+        return MyStopEvent(query="The query is manageable")
 
     @step()
     async def improve_query(self,
                             ev: FailedEvent) -> Union[ChangeQueryEvent,
-                                                      StopEvent]:
+                                                      MyStopEvent]:
         """aaa"""
         error = ev.error
         print(error)
@@ -74,7 +95,7 @@ class MyWorkflow(Workflow):
         if random_number == 0:
             return ChangeQueryEvent(query="Here's a better query")
 
-        return StopEvent(result="Your query cannot be fixed")
+        return MyStopEvent(query="The query is not manageable")
 
 
 async def workflow_execution():

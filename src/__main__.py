@@ -29,3 +29,6 @@ if __name__ == "__main__":  # pragma: no cover
         from src.llama_index_experiments.hf_simple_workflow import main
 
         asyncio.run(main())
+
+    else:
+        raise ValueError(f"Agent {AGENT_TO_BE_EXECUTED} not supported")
