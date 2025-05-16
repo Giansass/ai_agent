@@ -24,6 +24,21 @@ judgment: 1 if the query can be managed, 0 otherwise
 reason: here the reasons that guided your judgment
 """
 
+CORE_BSN_QUERY_PROMPT_TEMPLATE_STR = """
+CONTEXT
+You are a business analyst expert on companies core business definitions.
+
+TASK
+Provide the core business information for the company: {{company_name}}.
+
+FORMAT
+Format your response strictly as a JSON object with the following keys and structure:
+{{format_instructions}}
+Ensure the output is ONLY the JSON object, with no additional commentary or
+text before or after it.
+"""
+
+
 WEB_SEARCH_QUERY_PROMPT_STR = """
 CONTEXT:
 

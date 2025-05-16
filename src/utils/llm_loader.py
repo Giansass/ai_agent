@@ -1,8 +1,8 @@
 """Module used to load llm models"""
 from typing import Optional, Union
 
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.llms.google_genai import GoogleGenAI
-from llama_index.llms.openai import OpenAI
 
 
 class LLMLoader:
@@ -10,12 +10,10 @@ class LLMLoader:
 
     def __init__(
         self,
-        model_provider: Optional[str],
         model_name: Optional[str],
         api_key: Optional[str],
     ):
         """LLM Loader constructor"""
-        self.model_provider = model_provider
         self.model_name = model_name
         self.api_key = api_key
 
@@ -26,18 +24,20 @@ class LLMLoader:
             api_key=self.api_key,
         )
 
-    def open_ai_model_loader(self) -> OpenAI:
+    def gemini_embedding_model_loader(self) -> GoogleGenAIEmbedding:
         """Load Open AI LLM"""
-        return OpenAI(
+        return GoogleGenAIEmbedding(
             model=self.model_name,
             api_key=self.api_key,
         )
 
-    def llm_initializer(self) -> Union[GoogleGenAI, OpenAI]:
+    def llm_initializer(
+            self,
+            model_type: str) -> Union[GoogleGenAI, GoogleGenAIEmbedding]:
         """Main method"""
-        if self.model_provider == "google_genai":
+        if model_type == "text_generation":
             return self.gemini_model_loader()
-        if self.model_provider == "openai":
-            return self.open_ai_model_loader()
+        if model_type == "embedding":
+            return self.gemini_embedding_model_loader()
 
-        raise ValueError(f"Model provider {self.model_provider} not supported")
+        raise ValueError(f"Model provider {model_type} not supported")
