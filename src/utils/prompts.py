@@ -29,13 +29,13 @@ CONTEXT
 You are a business analyst expert on companies core business definitions.
 
 TASK
-Provide the core business information for the company: {{company_name}}.
+Answer the question:
+---------------------
+What does {{ company_name }} do?
+---------------------
 
-FORMAT
-Format your response strictly as a JSON object with the following keys and structure:
-{{format_instructions}}
-Ensure the output is ONLY the JSON object, with no additional commentary or
-text before or after it.
+CONSTRAINTS
+If you are unable to answer, answer “I don't know”.
 """
 
 

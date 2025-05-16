@@ -1,11 +1,20 @@
 """aaa"""
+import pickle
+
 import chromadb
-from duckduckgo_search import DDGS
 from llama_index.core import VectorStoreIndex
 from llama_index.core.bridge.pydantic import BaseModel, Field
 from llama_index.core.output_parsers import PydanticOutputParser
 from llama_index.core.prompts import RichPromptTemplate
-from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
+from llama_index.core.workflow import (
+    Context,
+    Event,
+    StartEvent,
+    StopEvent,
+    Workflow,
+    step,
+)
+from llama_index.readers.web import BeautifulSoupWebReader
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from phoenix.otel import register
@@ -28,6 +37,9 @@ LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 core_bsn_query_prompt_tmpl = RichPromptTemplate(CORE_BSN_QUERY_PROMPT_TEMPLATE_STR)
 web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
 
+# Web content loader
+web_content_loader = BeautifulSoupWebReader()
+
 
 # Event definitions
 class _StartEvent(StartEvent):
@@ -42,7 +54,19 @@ class _StopEvent(StopEvent):
     query: str
 
 
-class _SearchEvent(Event):
+class _UrlSearchEvent(Event):
+    """aaa"""
+
+    query: str
+
+
+class _UrlContentExtractionEvent(Event):
+    """aaa"""
+
+    query: str
+
+
+class _GetWebEvent(Event):
     """aaa"""
 
     query: str
@@ -88,28 +112,45 @@ class WebSearchWorkflow(Workflow):
             self,
             ev: _StartEvent,
 
-    ) -> _SearchEvent:
+    ) -> _UrlSearchEvent | _StopEvent:
 
         """aaa"""
 
-        retr_output = query_engine.query(
-            core_bsn_query_prompt_tmpl.format(
-                company_name=ev.company_name,
-                format_instructions=pydantic_output_parser.get_format_string()
-            ))
+        # retr_output = query_engine.query(
+        #     core_bsn_query_prompt_tmpl.format(
+        #         company_name=ev.company_name
+        #     )).response.strip()
 
-        print(retr_output)
+        retr_output = "I don't know."
 
-        return _SearchEvent(query="Exit - correct")
+        if retr_output == "I don't know.":
+            return _UrlSearchEvent(query=ev.company_name)
+
+        return _StopEvent(query=retr_output)
 
     @step()
-    async def get_web_content(
-        self, ev: _SearchEvent
-    ) -> _SearchEvent:
+    async def get_web_url(
+            self,
+            ev: _UrlSearchEvent,
+            ctx: Context
+    ) -> _UrlContentExtractionEvent:
         """aaa"""
 
         print(ev.query)
-        DDGS(verify=False).text("What does Ferrari do?", max_results=2)
+        # web_search_output = DDGS(verify=False) \
+        #     .text(keywords=f"What does {ev.query} do?",
+        #           max_results=2)
+        #
+        # with open('./tmp_ddg_ferrari.pkl', 'wb') as f:
+        #     pickle.dump(web_search_output, f)
+
+        with open('./tmp_ddg_ferrari.pkl', 'rb') as f:
+            web_search_output = pickle.load(f)
+
+        await ctx.set(key="Web search output", value=web_search_output)
+
+        print(web_search_output[0])
+        print(web_search_output[1])
 
         # query = ev.query
         # web_search_query = llm \
@@ -120,23 +161,39 @@ class WebSearchWorkflow(Workflow):
         # print(f'question: {web_search_query.question}')
         # print(f'query: {web_search_query.query}')
 
-        return _SearchEvent(query="Exit - correct")
+        return _UrlContentExtractionEvent(query=ev.query)
 
     @step()
-    async def get_web_results(
-            self, ev: _SearchEvent
+    async def get_web_contents(
+            self,
+            ev: _UrlContentExtractionEvent,
+            ctx: Context
     ) -> _StopEvent:
         """aaa"""
 
-        query = ev.query
-        web_search_query = llm_text_generation \
-            .as_structured_llm(WebSearchQueryDefinitionFormat) \
-            .complete(web_search_query_prompt_tmpl.format(question_str=query)) \
-            .raw
+        print(ev.query)
+        retrieved_urls = await ctx.get("Web search output")
+        print(retrieved_urls)
+        # web_documents = web_content_loader\
+        #     .load_data(urls=[el['href'] for el in retrieved_urls])
+        #
+        # with open('./tmp_bs_ferrari.pkl', 'wb') as f:
+        #     pickle.dump(web_documents, f)
 
-        print(f'question: {web_search_query.question}')
-        print(f'query: {web_search_query.query}')
+        with open('./tmp_bs_ferrari.pkl', 'rb') as f:
+            web_documents = pickle.load(f)
 
+        print(web_documents)
+
+    #     query = ev.query
+    #     web_search_query = llm_text_generation \
+    #         .as_structured_llm(WebSearchQueryDefinitionFormat) \
+    #         .complete(web_search_query_prompt_tmpl.format(question_str=query)) \
+    #         .raw
+    #
+    #     print(f'question: {web_search_query.question}')
+    #     print(f'query: {web_search_query.query}')
+    #
         return _StopEvent(query="Exit - correct")
 
 
