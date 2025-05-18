@@ -1,5 +1,7 @@
 """aaa"""
+import copy
 import pickle
+import re
 
 import chromadb
 from llama_index.core import VectorStoreIndex
@@ -61,6 +63,12 @@ class _UrlSearchEvent(Event):
 
 
 class _UrlContentExtractionEvent(Event):
+    """aaa"""
+
+    query: str
+
+
+class _UrlContentStoringEvent(Event):
     """aaa"""
 
     query: str
@@ -149,9 +157,6 @@ class WebSearchWorkflow(Workflow):
 
         await ctx.set(key="Web search output", value=web_search_output)
 
-        print(web_search_output[0])
-        print(web_search_output[1])
-
         # query = ev.query
         # web_search_query = llm \
         #     .as_structured_llm(WebSearchQueryDefinitionFormat)\
@@ -172,19 +177,24 @@ class WebSearchWorkflow(Workflow):
         """aaa"""
 
         print(ev.query)
-        retrieved_urls = await ctx.get("Web search output")
-        print(retrieved_urls)
+        web_search_output = await ctx.get("Web search output")
+        print(web_search_output)
         # web_documents = web_content_loader\
-        #     .load_data(urls=[el['href'] for el in retrieved_urls])
+        #     .load_data(urls=[el['href'] for el in web_search_output_prc])
         #
         # with open('./tmp_bs_ferrari.pkl', 'wb') as f:
         #     pickle.dump(web_documents, f)
-
         with open('./tmp_bs_ferrari.pkl', 'rb') as f:
             web_documents = pickle.load(f)
 
-        print(web_documents)
+        # Put full body context in web_documents
+        web_documents_prc = copy.deepcopy(web_documents)
+        for i, web_document in enumerate(web_documents):
+            web_documents_prc[i].text = re.sub(r'\n+', r' ', web_document)
+            # Da fare, inserire anche il body in web document e assicurarsi che
+            # sia ben letto da chromadb e dal llm
 
+        await ctx.set(key="Web scraping output", value=web_documents)
     #     query = ev.query
     #     web_search_query = llm_text_generation \
     #         .as_structured_llm(WebSearchQueryDefinitionFormat) \
