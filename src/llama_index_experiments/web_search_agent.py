@@ -180,7 +180,7 @@ class WebSearchWorkflow(Workflow):
         web_search_output = await ctx.get("Web search output")
         print(web_search_output)
         # web_documents = web_content_loader\
-        #     .load_data(urls=[el['href'] for el in web_search_output_prc])
+        #     .load_data(urls=[el['href'] for el in web_search_output])
         #
         # with open('./tmp_bs_ferrari.pkl', 'wb') as f:
         #     pickle.dump(web_documents, f)
@@ -194,7 +194,7 @@ class WebSearchWorkflow(Workflow):
             # Da fare, inserire anche il body in web document e assicurarsi che
             # sia ben letto da chromadb e dal llm
 
-        await ctx.set(key="Web scraping output", value=web_documents)
+        await ctx.set(key="Web scraping output prc", value=web_documents_prc)
     #     query = ev.query
     #     web_search_query = llm_text_generation \
     #         .as_structured_llm(WebSearchQueryDefinitionFormat) \
