@@ -1,13 +1,15 @@
 """aaa"""
-import copy
-import pickle
 import re
 
 import chromadb
-from llama_index.core import VectorStoreIndex
+from duckduckgo_search import DDGS
+from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.bridge.pydantic import BaseModel, Field
+from llama_index.core.ingestion import IngestionPipeline
+from llama_index.core.node_parser import SentenceSplitter, TokenTextSplitter
 from llama_index.core.output_parsers import PydanticOutputParser
 from llama_index.core.prompts import RichPromptTemplate
+from llama_index.core.schema import TransformComponent
 from llama_index.core.workflow import (
     Context,
     Event,
@@ -42,12 +44,25 @@ web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
 # Web content loader
 web_content_loader = BeautifulSoupWebReader()
 
+#
+parser = SentenceSplitter()
+
+text_splitter = TokenTextSplitter(chunk_size=512)
+
 
 # Event definitions
 class _StartEvent(StartEvent):
     """aaa"""
 
-    company_name: str
+    query: str
+
+
+# Event definitions
+class _QueryEvent(Event):
+    """aaa"""
+
+    query: str
+    first_try: bool = True
 
 
 class _StopEvent(StopEvent):
@@ -99,6 +114,19 @@ class WebSearchQueryDefinitionFormat(BaseModel):
     query: str = Field(description="The search engine query")
 
 
+class TextCleaner(TransformComponent):
+    """aaa"""
+    def __call__(self, nodes, **kwargs):
+        prc_nodes = []
+        for node in nodes:
+            prc_text = re.sub(r"\n+", r" ", node.text)
+            prc_nodes.append(
+                Document(id=node.id_,
+                         text=prc_text,
+                         metadata={"href": node.id_}))
+        return prc_nodes
+
+
 # set up ChromaVectorStore and load in data
 db2 = chromadb.PersistentClient(path=".storage/chroma/")
 chroma_collection = db2.get_or_create_collection("sample_collection")
@@ -118,53 +146,54 @@ class WebSearchWorkflow(Workflow):
     @step()
     async def get_core_business_from_index(
             self,
-            ev: _StartEvent,
+            ev: _StartEvent | _QueryEvent,
 
     ) -> _UrlSearchEvent | _StopEvent:
 
         """aaa"""
 
-        # retr_output = query_engine.query(
-        #     core_bsn_query_prompt_tmpl.format(
-        #         company_name=ev.company_name
-        #     )).response.strip()
+        retrieved_output = query_engine.query(
+                                core_bsn_query_prompt_tmpl.format(
+                                    company_name=ev.query
+                                )).response.strip()
 
-        retr_output = "I don't know."
+        bad_resp = ["Empty Response", "I don't know."]
+        if retrieved_output in bad_resp and ev.first_try:
+            return _UrlSearchEvent(query=ev.query)
 
-        if retr_output == "I don't know.":
-            return _UrlSearchEvent(query=ev.company_name)
-
-        return _StopEvent(query=retr_output)
+        return _StopEvent(query=retrieved_output)
 
     @step()
     async def get_web_url(
             self,
             ev: _UrlSearchEvent,
             ctx: Context
-    ) -> _UrlContentExtractionEvent:
+    ) -> _UrlContentExtractionEvent | _StopEvent:
         """aaa"""
 
-        print(ev.query)
-        # web_search_output = DDGS(verify=False) \
-        #     .text(keywords=f"What does {ev.query} do?",
-        #           max_results=2)
-        #
+        web_search_output = DDGS(verify=False).text(
+                                keywords=f"What does {ev.query} do?",
+                                max_results=5)
+
         # with open('./tmp_ddg_ferrari.pkl', 'wb') as f:
         #     pickle.dump(web_search_output, f)
-
-        with open('./tmp_ddg_ferrari.pkl', 'rb') as f:
-            web_search_output = pickle.load(f)
-
-        await ctx.set(key="Web search output", value=web_search_output)
-
-        # query = ev.query
-        # web_search_query = llm \
-        #     .as_structured_llm(WebSearchQueryDefinitionFormat)\
-        #     .complete(web_search_query_prompt_tmpl.format(question_str=query))\
-        #     .raw
         #
-        # print(f'question: {web_search_query.question}')
-        # print(f'query: {web_search_query.query}')
+        # with open('./tmp_ddg_ferrari.pkl', 'rb') as f:
+        #     web_search_output = pickle.load(f)
+
+        # Check if web contents already exists
+        urls = [web_doc['href'] for web_doc in web_search_output]
+        urls_to_prc = []
+        for url in urls:
+            collected = chroma_collection.get(where={"href": url})
+            if len(collected['ids']) == 0:
+                urls_to_prc.append(url)
+
+        if len(urls_to_prc) == 0:
+            query = "No other contents found. Not able to answer the question"
+            return _StopEvent(query=query)
+
+        await ctx.set(key="urls to prc", value=urls_to_prc)
 
         return _UrlContentExtractionEvent(query=ev.query)
 
@@ -173,28 +202,29 @@ class WebSearchWorkflow(Workflow):
             self,
             ev: _UrlContentExtractionEvent,
             ctx: Context
-    ) -> _StopEvent:
+    ) -> _UrlContentStoringEvent:
         """aaa"""
 
-        print(ev.query)
-        web_search_output = await ctx.get("Web search output")
-        print(web_search_output)
-        # web_documents = web_content_loader\
-        #     .load_data(urls=[el['href'] for el in web_search_output])
-        #
-        # with open('./tmp_bs_ferrari.pkl', 'wb') as f:
-        #     pickle.dump(web_documents, f)
-        with open('./tmp_bs_ferrari.pkl', 'rb') as f:
-            web_documents = pickle.load(f)
+        urls_to_prc = await ctx.get("urls to prc")
+        web_documents = web_content_loader\
+            .load_data(urls=urls_to_prc)
 
-        # Put full body context in web_documents
-        web_documents_prc = copy.deepcopy(web_documents)
-        for i, web_document in enumerate(web_documents):
-            web_documents_prc[i].text = re.sub(r'\n+', r' ', web_document)
-            # Da fare, inserire anche il body in web document e assicurarsi che
-            # sia ben letto da chromadb e dal llm
+        pipeline = IngestionPipeline(
+            transformations=[
+                TextCleaner(),
+                text_splitter,
+                llm_text_embedding
+            ]
+        )
 
-        await ctx.set(key="Web scraping output prc", value=web_documents_prc)
+        # run the pipeline
+        nodes = pipeline.run(documents=web_documents)
+
+        # index.update_ref_doc(doc_chunks[0])
+        # Da fare, inserire anche il body in web document e assicurarsi che
+        # sia ben letto da chromadb e dal llm
+
+        await ctx.set(key="nodes", value=nodes)
     #     query = ev.query
     #     web_search_query = llm_text_generation \
     #         .as_structured_llm(WebSearchQueryDefinitionFormat) \
@@ -204,11 +234,31 @@ class WebSearchWorkflow(Workflow):
     #     print(f'question: {web_search_query.question}')
     #     print(f'query: {web_search_query.query}')
     #
-        return _StopEvent(query="Exit - correct")
+        return _UrlContentStoringEvent(query=ev.query)
+
+    @step()
+    async def store_web_contents(
+            self,
+            ev: _UrlContentStoringEvent,
+            ctx: Context
+    ) -> _QueryEvent:
+        """aaa"""
+
+        nodes = await ctx.get("nodes")
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+        # save to disk
+        _ = VectorStoreIndex(
+            nodes,
+            storage_context=storage_context,
+            embed_model=llm_text_embedding
+        )
+
+        return _QueryEvent(query=ev.query, first_try=False)
 
 
 async def web_search_workflow_execution():
     """Main function"""
     w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(company_name="Ferrari")
+    response = await w.run(query="KPMG")
     print(response)
