@@ -30,6 +30,7 @@ from src.utils.prompts import (
     WEB_SEARCH_QUERY_PROMPT_STR,
 )
 
+# PHONEIX
 # Set phoenix observability monitor
 tracer_provider = register(
     endpoint=PHOENIX_COLLECTOR_ENDPOINT,
@@ -44,59 +45,103 @@ web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
 # Web content loader
 web_content_loader = BeautifulSoupWebReader()
 
-#
+# Sentence and text splitter parser
 parser = SentenceSplitter()
-
 text_splitter = TokenTextSplitter(chunk_size=512)
 
 
 # Event definitions
 class _StartEvent(StartEvent):
-    """aaa"""
+    """Custom start event
 
-    query: str
+    Parameters
+    ----------
+    query : str
+    first_try: bool, default True
 
-
-# Event definitions
-class _QueryEvent(Event):
-    """aaa"""
+    """
 
     query: str
     first_try: bool = True
 
 
+# Event definitions
+class _QueryEvent(Event):
+    """Evetn used to
+
+    Parameters
+    ----------
+    query : str
+    first_try: bool, default False
+
+    """
+
+    query: str
+    first_try: bool = False
+
+
 class _StopEvent(StopEvent):
-    """aaa"""
+    """Custom stop event
+
+    Parameters
+    ----------
+    query : str
+
+    """
 
     query: str
 
 
 class _UrlSearchEvent(Event):
-    """aaa"""
+    """Event used to search web contents through the
+    web search engine.
+
+    Parameters
+    ----------
+    query : str
+
+    """
 
     query: str
 
 
 class _UrlContentExtractionEvent(Event):
-    """aaa"""
+    """Event used to extract web contents.
+
+    Parameters
+    ----------
+    query : str
+
+    """
 
     query: str
 
 
 class _UrlContentStoringEvent(Event):
-    """aaa"""
+    """Event used to store web contents.
+
+    Parameters
+    ----------
+    query : str
+
+    """
 
     query: str
 
 
-class _GetWebEvent(Event):
-    """aaa"""
-
-    query: str
-
-
+# Pydantic data structures
 class CompanySearchQueryDefinitionFormat(BaseModel):
-    """Format used to get llm validation output"""
+    """Format used to get llm validation output
+
+        Parameters
+        ----------
+        obj : type
+
+        Returns
+        -------
+        obj : type
+            description
+        """
 
     company_name: str = Field(description="The company name")
     company_core_business: str = Field(description="The company core business")
@@ -108,14 +153,32 @@ pydantic_output_parser = PydanticOutputParser(
 
 
 class WebSearchQueryDefinitionFormat(BaseModel):
-    """Format used to get llm validation output"""
+    """description
+
+    Parameters
+    ----------
+    obj : type
+
+    Returns
+    -------
+    obj : type
+    """
 
     question: str = Field(description="The question")
     query: str = Field(description="The search engine query")
 
 
 class TextCleaner(TransformComponent):
-    """aaa"""
+    """description
+
+    Parameters
+    ----------
+    obj : type
+
+    Returns
+    -------
+    obj : type
+    """
     def __call__(self, nodes, **kwargs):
         prc_nodes = []
         for node in nodes:
@@ -133,7 +196,7 @@ chroma_collection = db2.get_or_create_collection("sample_collection")
 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 index = VectorStoreIndex.from_vector_store(vector_store, embed_model=llm_text_embedding)
 query_engine = index.as_query_engine(
-    similarity_top_k=3,
+    similarity_top_k=10,
     vector_store_query_mode="default",
     llm=llm_text_generation,
     output_parser=pydantic_output_parser
@@ -141,7 +204,7 @@ query_engine = index.as_query_engine(
 
 
 class WebSearchWorkflow(Workflow):
-    """aaa"""
+    """Class used to define the agent workflow"""
 
     @step()
     async def get_core_business_from_index(
@@ -150,7 +213,20 @@ class WebSearchWorkflow(Workflow):
 
     ) -> _UrlSearchEvent | _StopEvent:
 
-        """aaa"""
+        """Very first step of the workflow. The agent try to answer
+        using the available contents. If contents already ingested
+        are not enough return _QueryEvent, otherwise _StopEvent.
+
+        Parameters
+        ----------
+        ev : _StartEvent | _QueryEvent
+
+        Returns
+        -------
+        _UrlSearchEvent | _StopEvent
+            Return _UrlSearchEvent if no contents found.
+            _StopEvent otherwise.
+        """
 
         retrieved_output = query_engine.query(
                                 core_bsn_query_prompt_tmpl.format(
@@ -169,17 +245,23 @@ class WebSearchWorkflow(Workflow):
             ev: _UrlSearchEvent,
             ctx: Context
     ) -> _UrlContentExtractionEvent | _StopEvent:
-        """aaa"""
+        """This step is in charge to call DuckDuckGo API to retrieve urls
+        that contains info about the asked company. If no new contents have
+        been found the method returns _StopEvent. Otherwise _UrlContentExtractionEvent
+
+        Parameters
+        ----------
+        ev : _UrlSearchEvent
+        ctx : Context
+
+        Returns
+        -------
+        _UrlContentExtractionEvent | _StopEvent
+        """
 
         web_search_output = DDGS(verify=False).text(
                                 keywords=f"What does {ev.query} do?",
                                 max_results=5)
-
-        # with open('./tmp_ddg_ferrari.pkl', 'wb') as f:
-        #     pickle.dump(web_search_output, f)
-        #
-        # with open('./tmp_ddg_ferrari.pkl', 'rb') as f:
-        #     web_search_output = pickle.load(f)
 
         # Check if web contents already exists
         urls = [web_doc['href'] for web_doc in web_search_output]
@@ -203,7 +285,18 @@ class WebSearchWorkflow(Workflow):
             ev: _UrlContentExtractionEvent,
             ctx: Context
     ) -> _UrlContentStoringEvent:
-        """aaa"""
+        """Once DuckDuckGo has been used to retrieve urls this method is in
+        charge to scrape urls obtaining the full body contents.
+
+        Parameters
+        ----------
+        ev : _UrlContentExtractionEvent
+        ctx : Context
+
+        Returns
+        -------
+        _UrlContentStoringEvent
+        """
 
         urls_to_prc = await ctx.get("urls to prc")
         web_documents = web_content_loader\
@@ -219,21 +312,10 @@ class WebSearchWorkflow(Workflow):
 
         # run the pipeline
         nodes = pipeline.run(documents=web_documents)
-
-        # index.update_ref_doc(doc_chunks[0])
         # Da fare, inserire anche il body in web document e assicurarsi che
         # sia ben letto da chromadb e dal llm
 
         await ctx.set(key="nodes", value=nodes)
-    #     query = ev.query
-    #     web_search_query = llm_text_generation \
-    #         .as_structured_llm(WebSearchQueryDefinitionFormat) \
-    #         .complete(web_search_query_prompt_tmpl.format(question_str=query)) \
-    #         .raw
-    #
-    #     print(f'question: {web_search_query.question}')
-    #     print(f'query: {web_search_query.query}')
-    #
         return _UrlContentStoringEvent(query=ev.query)
 
     @step()
@@ -242,7 +324,18 @@ class WebSearchWorkflow(Workflow):
             ev: _UrlContentStoringEvent,
             ctx: Context
     ) -> _QueryEvent:
-        """aaa"""
+        """The method is in charge to store new retrieved web contents on chromadb.
+        once completed the workflow come back to get_core_business_from_index.
+
+        Parameters
+        ----------
+        ev : _UrlContentStoringEvent
+        ctx : Context
+
+        Returns
+        -------
+        _QueryEvent
+        """
 
         nodes = await ctx.get("nodes")
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
@@ -254,11 +347,12 @@ class WebSearchWorkflow(Workflow):
             embed_model=llm_text_embedding
         )
 
-        return _QueryEvent(query=ev.query, first_try=False)
+        return _QueryEvent(query=ev.query)
 
 
 async def web_search_workflow_execution():
-    """Main function"""
+    """The function is intended to execute the workflow through the __main__ script
+    and print the results."""
     w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(query="KPMG")
+    response = await w.run(query="Microsoft")
     print(response)
