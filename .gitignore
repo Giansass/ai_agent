@@ -221,3 +221,4 @@ fabric.properties
 .DS_Store
 .storage/
 *.pkl
+*.drawio

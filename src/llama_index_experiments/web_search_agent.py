@@ -2,9 +2,11 @@
 import re
 
 import chromadb
+import tiktoken
 from duckduckgo_search import DDGS
-from llama_index.core import Document, StorageContext, VectorStoreIndex
+from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.bridge.pydantic import BaseModel, Field
+from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter, TokenTextSplitter
 from llama_index.core.output_parsers import PydanticOutputParser
@@ -30,7 +32,6 @@ from src.utils.prompts import (
     WEB_SEARCH_QUERY_PROMPT_STR,
 )
 
-# PHONEIX
 # Set phoenix observability monitor
 tracer_provider = register(
     endpoint=PHOENIX_COLLECTOR_ENDPOINT,
@@ -48,6 +49,14 @@ web_content_loader = BeautifulSoupWebReader()
 # Sentence and text splitter parser
 parser = SentenceSplitter()
 text_splitter = TokenTextSplitter(chunk_size=512)
+
+# Token counter
+token_counter = TokenCountingHandler(
+    tokenizer=tiktoken.get_encoding("o200k_base").encode
+)
+
+Settings.callback_manager = CallbackManager([token_counter])
+token_counter.reset_counts()
 
 
 # Event definitions
@@ -67,7 +76,7 @@ class _StartEvent(StartEvent):
 
 # Event definitions
 class _QueryEvent(Event):
-    """Evetn used to
+    """Event used to
 
     Parameters
     ----------
@@ -183,6 +192,9 @@ class TextCleaner(TransformComponent):
         prc_nodes = []
         for node in nodes:
             prc_text = re.sub(r"\n+", r" ", node.text)
+            prc_text = re.sub(r"\r+", r" ", prc_text)
+            prc_text = re.sub(r"\t+", r" ", prc_text)
+            prc_text = re.sub(r"\s+", r" ", prc_text)
             prc_nodes.append(
                 Document(id=node.id_,
                          text=prc_text,
@@ -196,7 +208,7 @@ chroma_collection = db2.get_or_create_collection("sample_collection")
 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 index = VectorStoreIndex.from_vector_store(vector_store, embed_model=llm_text_embedding)
 query_engine = index.as_query_engine(
-    similarity_top_k=10,
+    similarity_top_k=5,
     vector_store_query_mode="default",
     llm=llm_text_generation,
     output_parser=pydantic_output_parser
@@ -232,6 +244,14 @@ class WebSearchWorkflow(Workflow):
                                 core_bsn_query_prompt_tmpl.format(
                                     company_name=ev.query
                                 )).response.strip()
+
+        n_tokens = f"""
+        Embedding Tokens: {token_counter.total_embedding_token_count}
+        LLM Prompt Tokens: {token_counter.prompt_llm_token_count}
+        LLM Completion Tokens: {token_counter.completion_llm_token_count}
+        Total LLM Token Count: {token_counter.total_llm_token_count}
+        """
+        print(n_tokens)
 
         bad_resp = ["Empty Response", "I don't know."]
         if retrieved_output in bad_resp and ev.first_try:
@@ -354,5 +374,5 @@ async def web_search_workflow_execution():
     """The function is intended to execute the workflow through the __main__ script
     and print the results."""
     w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(query="Microsoft")
+    response = await w.run(query="Reply Spa")
     print(response)
