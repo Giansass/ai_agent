@@ -3,6 +3,7 @@ import re
 
 import chromadb
 import tiktoken
+import validators
 from duckduckgo_search import DDGS
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.bridge.pydantic import BaseModel, Field
@@ -26,7 +27,18 @@ from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from phoenix.otel import register
 
 from src.llama_index_experiments.llm_load import llm_text_embedding, llm_text_generation
-from src.utils.env_var_loader import PHOENIX_COLLECTOR_ENDPOINT
+from src.utils.bing_search_loader import bing_search
+from src.utils.custom_dataclass import WebSearchConfigData, WebSearchQueryData
+from src.utils.env_var_loader import (
+    BING_FROM_DATE,
+    BING_HEADERS,
+    BING_N_PAGES,
+    BING_SEARCH_URL,
+    BING_SIZE_PAGE,
+    BING_TO_DATE,
+    PHOENIX_COLLECTOR_ENDPOINT,
+    WEB_SEARCH_ENGINE,
+)
 from src.utils.prompts import (
     CORE_BSN_QUERY_PROMPT_TEMPLATE_STR,
     WEB_SEARCH_QUERY_PROMPT_STR,
@@ -243,7 +255,8 @@ class WebSearchWorkflow(Workflow):
         retrieved_output = query_engine.query(
                                 core_bsn_query_prompt_tmpl.format(
                                     company_name=ev.query
-                                )).response.strip()
+                                    )
+                                ).response.strip()  # type: ignore
 
         n_tokens = f"""
         Embedding Tokens: {token_counter.total_embedding_token_count}
@@ -263,9 +276,8 @@ class WebSearchWorkflow(Workflow):
     async def get_web_url(
             self,
             ev: _UrlSearchEvent,
-            ctx: Context
-    ) -> _UrlContentExtractionEvent | _StopEvent:
-        """This step is in charge to call DuckDuckGo API to retrieve urls
+            ctx: Context) -> _UrlContentExtractionEvent | _StopEvent:
+        """This step is in charge to call Bing Search API to retrieve urls
         that contains info about the asked company. If no new contents have
         been found the method returns _StopEvent. Otherwise _UrlContentExtractionEvent
 
@@ -279,12 +291,55 @@ class WebSearchWorkflow(Workflow):
         _UrlContentExtractionEvent | _StopEvent
         """
 
-        web_search_output = DDGS(verify=False).text(
-                                keywords=f"What does {ev.query} do?",
-                                max_results=5)
+        web_search_query = WebSearchQueryData(
+            company=ev.query,
+            from_date=BING_FROM_DATE,
+            to_date=BING_TO_DATE
+        )
+
+        web_search_query_config = WebSearchConfigData(
+            size_page=BING_SIZE_PAGE,
+            n_pages=BING_N_PAGES,
+            search_url=BING_SEARCH_URL,
+            headers=BING_HEADERS
+        )
+
+        if WEB_SEARCH_ENGINE == "DuckDuckGo":
+            # DuckDuckGo Search API
+            retrieved_content = DDGS(verify=False) \
+                                    .text(keywords=web_search_query.company,
+                                          max_results=10)
+
+        elif WEB_SEARCH_ENGINE == "Bing":
+            # Bing Search API
+            retrieved_content = bing_search(web_search_query, web_search_query_config)
+
+        else:
+            raise ValueError(f"Web search engine {WEB_SEARCH_ENGINE} not supported.")
 
         # Check if web contents already exists
-        urls = [web_doc['href'] for web_doc in web_search_output]
+        if len(retrieved_content) == 0:
+            query = "No contents found. Not able to answer the question"
+            return _StopEvent(query=query)
+
+        # Validate retrieved content structure
+        if not isinstance(retrieved_content, list):
+            raise ValueError("Retrieved content must be a list of dictionaries")
+        # Check if each element in the list is a dictionary with 'url' key
+        if not all(isinstance(el, dict) and 'url' in el for el in retrieved_content):
+            raise ValueError("Retrieved content must be a list of dicts with 'url' key")
+
+        urls = []
+        for el in retrieved_content:
+            # Check if the retrieved url is valid
+            if validators.url(el['url']):
+                print(f'Valid URL found: {el["url"]}')
+                urls.append(el['url'])
+            # If the url is not valid, print a warning
+            else:
+                print(f'Invalid URL found: {el["url"]}')
+        print(f"Retrieved {len(urls)} valid URLs.")
+
         urls_to_prc = []
         for url in urls:
             collected = chroma_collection.get(where={"href": url})
@@ -305,7 +360,7 @@ class WebSearchWorkflow(Workflow):
             ev: _UrlContentExtractionEvent,
             ctx: Context
     ) -> _UrlContentStoringEvent:
-        """Once DuckDuckGo has been used to retrieve urls this method is in
+        """Once Web Search API has been used to retrieve urls this method is in
         charge to scrape urls obtaining the full body contents.
 
         Parameters
@@ -326,7 +381,7 @@ class WebSearchWorkflow(Workflow):
             transformations=[
                 TextCleaner(),
                 text_splitter,
-                llm_text_embedding
+                llm_text_embedding  # type: ignore
             ]
         )
 
@@ -374,5 +429,5 @@ async def web_search_workflow_execution():
     """The function is intended to execute the workflow through the __main__ script
     and print the results."""
     w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(query="Reply Spa")
+    response = await w.run(query="Logitech")
     print(response)

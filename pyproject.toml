@@ -281,6 +281,9 @@ wsproto = "1.2.0"
 yarl = "1.20.0"
 yfinance = "0.2.61"
 zipp = "3.21.0"
+validators = "^0.35.0"
+types-requests = "^2.32.4.20250611"
+mypy = "^1.16.1"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"

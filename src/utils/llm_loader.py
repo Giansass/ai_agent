@@ -10,7 +10,7 @@ class LLMLoader:
 
     def __init__(
         self,
-        model_name: Optional[str],
+        model_name: str,
         api_key: Optional[str],
     ):
         """LLM Loader constructor"""
