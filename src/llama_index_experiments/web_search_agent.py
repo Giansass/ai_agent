@@ -43,6 +43,7 @@ from src.utils.prompts import (
     CORE_BSN_QUERY_PROMPT_TEMPLATE_STR,
     WEB_SEARCH_QUERY_PROMPT_STR,
 )
+from src.utils.web_contents_validator import web_contents_validator
 
 # Set phoenix observability monitor
 tracer_provider = register(
@@ -305,10 +306,21 @@ class WebSearchWorkflow(Workflow):
         )
 
         if WEB_SEARCH_ENGINE == "DuckDuckGo":
+
             # DuckDuckGo Search API
-            retrieved_content = DDGS(verify=False) \
+            retrieved_content_temp = DDGS(verify=False) \
                                     .text(keywords=web_search_query.company,
                                           max_results=10)
+
+            # Replace href with url
+            retrieved_content = []
+            for cont in retrieved_content_temp:
+                cont['url'] = cont['href']
+                del cont['href']
+                retrieved_content.append(cont)
+
+            print(f"Retrieved {len(retrieved_content)} results from DuckDuckGo.")
+            del retrieved_content_temp
 
         elif WEB_SEARCH_ENGINE == "Bing":
             # Bing Search API
@@ -317,17 +329,12 @@ class WebSearchWorkflow(Workflow):
         else:
             raise ValueError(f"Web search engine {WEB_SEARCH_ENGINE} not supported.")
 
-        # Check if web contents already exists
-        if len(retrieved_content) == 0:
-            query = "No contents found. Not able to answer the question"
-            return _StopEvent(query=query)
+        # Validate retrieved content
+        verified, query = web_contents_validator(retrieved_content)
 
-        # Validate retrieved content structure
-        if not isinstance(retrieved_content, list):
-            raise ValueError("Retrieved content must be a list of dictionaries")
-        # Check if each element in the list is a dictionary with 'url' key
-        if not all(isinstance(el, dict) and 'url' in el for el in retrieved_content):
-            raise ValueError("Retrieved content must be a list of dicts with 'url' key")
+        # If no contents have been found
+        if not verified:
+            return _StopEvent(query=query)
 
         urls = []
         for el in retrieved_content:
@@ -429,5 +436,5 @@ async def web_search_workflow_execution():
     """The function is intended to execute the workflow through the __main__ script
     and print the results."""
     w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(query="Logitech")
+    response = await w.run(query="Apple Inc.")
     print(response)

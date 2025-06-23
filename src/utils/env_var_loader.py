@@ -11,7 +11,9 @@ LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME",
                                 "models/gemini-2.0-flash-lite")
 AGENT_TO_BE_EXECUTED = os.environ.get("AGENT_TO_BE_EXECUTED")
 PHOENIX_COLLECTOR_ENDPOINT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT")
-WEB_SEARCH_ENGINE = os.environ.get("WEB_SEARCH_ENGINE", "Bing")
+WEB_SEARCH_ENGINE = os.environ.get("WEB_SEARCH_ENGINE", "DuckDuckGo")
+
+DUCKDUCKGO_CERTIFICATE_PATH = os.environ.get("DUCKDUCKGO_CERTIFICATE_PATH")
 
 # Chroma Env Variables
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME",

@@ -115,7 +115,8 @@ repos:
         language: system
         types: [ python ]
         stages: [pre-commit]
-        args: ["--rcfile=.pylintrc"]
+        args: ["-rn", "-sn", "--rcfile=.pylintrc"]
+
     -   id: pytest
         name: pytest
         description: Perform tests with pytest
