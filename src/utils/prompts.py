@@ -76,4 +76,8 @@ query: Intel
 
 """
 
+WEB_CRAWLING_QUERY_PROMPT_STR = """
+What does {{ company_name }} do?
+"""
+
 validation_prompt_template = RichPromptTemplate(VALIDATION_PROMPT_STR)

@@ -1,5 +1,6 @@
 """aaa"""
 import re
+import time
 
 import chromadb
 import tiktoken
@@ -36,12 +37,17 @@ from src.utils.env_var_loader import (
     BING_SEARCH_URL,
     BING_SIZE_PAGE,
     BING_TO_DATE,
+    DUCKDUCKGO_MAX_RESULTS,
     PHOENIX_COLLECTOR_ENDPOINT,
+    TOKEN_SPLITTER_CHUNK_OVERLAP,
+    TOKEN_SPLITTER_CHUNK_SIZE,
+    TOKEN_SPLITTER_MODEL_NAME,
     WEB_SEARCH_ENGINE,
+    WORKFLOW_TIMEOUT,
 )
 from src.utils.prompts import (
     CORE_BSN_QUERY_PROMPT_TEMPLATE_STR,
-    WEB_SEARCH_QUERY_PROMPT_STR,
+    WEB_CRAWLING_QUERY_PROMPT_STR,
 )
 from src.utils.web_contents_validator import web_contents_validator
 
@@ -54,18 +60,20 @@ LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 # Create prompts
 core_bsn_query_prompt_tmpl = RichPromptTemplate(CORE_BSN_QUERY_PROMPT_TEMPLATE_STR)
-web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
+# web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
+web_crawling_query_prompt_tmpl = RichPromptTemplate(WEB_CRAWLING_QUERY_PROMPT_STR)
 
 # Web content loader
 web_content_loader = BeautifulSoupWebReader()
 
 # Sentence and text splitter parser
 parser = SentenceSplitter()
-text_splitter = TokenTextSplitter(chunk_size=512)
+text_splitter = TokenTextSplitter(chunk_size=TOKEN_SPLITTER_CHUNK_SIZE,
+                                  chunk_overlap=TOKEN_SPLITTER_CHUNK_OVERLAP)
 
 # Token counter
 token_counter = TokenCountingHandler(
-    tokenizer=tiktoken.get_encoding("o200k_base").encode
+    tokenizer=tiktoken.get_encoding(TOKEN_SPLITTER_MODEL_NAME).encode
 )
 
 Settings.callback_manager = CallbackManager([token_counter])
@@ -221,7 +229,7 @@ chroma_collection = db2.get_or_create_collection("sample_collection")
 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 index = VectorStoreIndex.from_vector_store(vector_store, embed_model=llm_text_embedding)
 query_engine = index.as_query_engine(
-    similarity_top_k=5,
+    similarity_top_k=1,
     vector_store_query_mode="default",
     llm=llm_text_generation,
     output_parser=pydantic_output_parser
@@ -307,10 +315,27 @@ class WebSearchWorkflow(Workflow):
 
         if WEB_SEARCH_ENGINE == "DuckDuckGo":
 
+            # import os
+            # print(os.environ.get("REQUESTS_CA_BUNDLE"))
+            # print(os.environ.get("SSL_CERT_FILE"))
+            # print('aaa')
+            # xfvxff
+
             # DuckDuckGo Search API
-            retrieved_content_temp = DDGS(verify=False) \
-                                    .text(keywords=web_search_query.company,
-                                          max_results=10)
+            start_time = time.time()
+            print(f"Web crawling started for {web_search_query.company}...")
+
+            # Prepare the query
+            duckduck_go_query = web_crawling_query_prompt_tmpl.format(
+                                    company_name=web_search_query.company
+                                ).strip()
+
+            # Retrieve the content
+            print(f"Querying DuckDuckGo with: {duckduck_go_query}")
+            retrieved_content_temp = DDGS().text(
+                                                keywords=duckduck_go_query,
+                                                max_results=DUCKDUCKGO_MAX_RESULTS)
+            print(f"Web crawling took {time.time() - start_time:.2f} seconds.")
 
             # Replace href with url
             retrieved_content = []
@@ -381,9 +406,14 @@ class WebSearchWorkflow(Workflow):
         """
 
         urls_to_prc = await ctx.get("urls to prc")
+
+        start_time = time.time()
         web_documents = web_content_loader\
             .load_data(urls=urls_to_prc)
+        end_time = time.time()
+        print(f"Web scraping took {end_time - start_time:.2f} seconds.")
 
+        start_time = time.time()
         pipeline = IngestionPipeline(
             transformations=[
                 TextCleaner(),
@@ -391,9 +421,12 @@ class WebSearchWorkflow(Workflow):
                 llm_text_embedding  # type: ignore
             ]
         )
+        end_time = time.time()
+        print(f"Pipeline setup took {end_time - start_time:.2f} seconds.")
 
+        print(3)
         # run the pipeline
-        nodes = pipeline.run(documents=web_documents)
+        nodes = pipeline.run(documents=web_documents, show_progress=True)
         # Da fare, inserire anche il body in web document e assicurarsi che
         # sia ben letto da chromadb e dal llm
 
@@ -435,6 +468,6 @@ class WebSearchWorkflow(Workflow):
 async def web_search_workflow_execution():
     """The function is intended to execute the workflow through the __main__ script
     and print the results."""
-    w = WebSearchWorkflow(timeout=10, verbose=False)
-    response = await w.run(query="Apple Inc.")
+    w = WebSearchWorkflow(timeout=WORKFLOW_TIMEOUT, verbose=True)
+    response = await w.run(query="Vodafone", first_try=True)
     print(response)
