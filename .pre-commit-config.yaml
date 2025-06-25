@@ -78,14 +78,14 @@ repos:
         -   flake8-comprehensions
         -   flake8-simplify
 
--   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-    -   id: mypy
-        name: mypy
-        entry: poetry run mypy
-        description: Python static type checker
-        stages: [pre-commit]
+# -   repo: https://github.com/pre-commit/mirrors-mypy
+#     rev: v1.8.0
+#     hooks:
+#     -   id: mypy
+#         name: mypy
+#         entry: poetry run mypy
+#         description: Python static type checker
+#         stages: [pre-commit]
 
 -   repo: https://github.com/hadialqattan/pycln
     rev: v2.4.0

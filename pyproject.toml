@@ -284,6 +284,7 @@ validators = "^0.35.0"
 types-requests = "^2.32.4.20250611"
 mypy = "^1.16.1"
 cryptography = "^45.0.4"
+openpyxl = "^3.1.5"
 
 [tool.poetry.group.logs.dependencies]
 logging = "^0.4.9.6"

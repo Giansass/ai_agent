@@ -222,3 +222,7 @@ fabric.properties
 .storage/
 *.pkl
 *.drawio
+
+# Files stored in the data folder
+data/*
+!data/README.txt

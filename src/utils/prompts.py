@@ -80,4 +80,73 @@ WEB_CRAWLING_QUERY_PROMPT_STR = """
 What does {{ company_name }} do?
 """
 
+FIND_SIMILAR_MG_QUERY_PROMPT_STR = """
+CONTEXT:
+
+You are a business analyst expert. You recieve a description of a company
+and you are asked to find the most similars MG in a set of
+MGs.
+
+TASK:
+
+Find the most similars MG to the following company description:
+---------------------
+{{ company_description }}
+---------------------
+Provide also a motivation for each MG you select.
+
+FORMAT:
+use the following json format to produce the output:
+    {
+    "output": [
+        ["Similar MG", "Your motivation"]
+        ]
+    }
+
+If you find several similar MGs, return a list of list like the
+following example (here you found 3 similar MGs):
+
+    {
+    "output": [
+        ["Similar MG 1", "Your motivation 1"],
+        ["Similar MG 2", "Your motivation 2"],
+        ["Similar MG 3", "Your motivation 3"]]
+    }
+
+If you find no similar MG, return an empty list like the following example:
+    {
+    "output": []
+    }
+
+
+
+
+EXAMPLES:
+Input:
+    Red company corp. is a company that produces red products.
+Expected output (here you found 2 similar MGs):
+    {
+    "output": [
+        ["Red products", "Red products are a key focus for this company."],
+        ["Red services", "The company has a strong presence in the red product market."]
+        ]
+    }
+
+Input:
+    Blue company corp. is a company that produces blue products.
+Expected output (just one similar MG found):
+    {
+    "output": [
+        ["Blue products", "Blue products are a key focus for this company."]
+        ]
+    }
+
+Input:
+    Green company corp. is a company that produces blue products.
+Expected output (no similar MG found):
+    {
+    "output": []
+    }
+"""
+
 validation_prompt_template = RichPromptTemplate(VALIDATION_PROMPT_STR)
