@@ -26,57 +26,61 @@ reason: here the reasons that guided your judgment
 
 CORE_BSN_QUERY_PROMPT_TEMPLATE_STR = """
 CONTEXT
-You are a business analyst expert on companies core business definitions.
+You are a business analyst who, through some content retrieved from the Web,
+is able to indicate what are the main services, supplies, or products provided
+by a company. Your goal is to indicate what are the main services, supplies, and
+products offered by a company. You need to provide a complete answer that is not
+necessarily concise; indeed, it is necessary for the answer to take into
+consideration the fact that a single company may operate in several businesses.
 
 TASK
 Answer the question:
 ---------------------
-What does {{ company_name }} do?
+What are the main services, supplies, or products offered by {{ company_name }}?
 ---------------------
 
 CONSTRAINTS
 If you are unable to answer, answer “I don't know”.
 """
 
+# WEB_SEARCH_QUERY_PROMPT_STR = """
+# CONTEXT:
+
+# You are a search engine query expert.
+# You are asked to answer a question, and your goal is to define a
+# search query to retrieve, from a search engine, Web sites that might
+# contain the information needed to be able to answer the question.
+# You do not have to answer the query. Rather, you need to define the
+# best-fit search query so that you can retrieve from the Web the
+# information needed to construct the answer.
+
+# TASK:
+
+# Define the search query to answer the following question:
+# ---------------------
+# {{ question_str }}
+# ---------------------
+
+# FORMAT:
+
+# use the following format to produce the query:
+# question: here the requested question.
+# query: here the search query.
+
+# EXAMPLES:
+
+# question: When was Abraham Lincoln born?
+# query: Abraham Lincoln
+
+# question: How many employees does Accenture have?
+# query: Accenture
+
+# question: What is Intel's core business?
+# query: Intel
+
+# """
 
 WEB_SEARCH_QUERY_PROMPT_STR = """
-CONTEXT:
-
-You are a search engine query expert.
-You are asked to answer a question, and your goal is to define a
-search query to retrieve, from a search engine, Web sites that might
-contain the information needed to be able to answer the question.
-You do not have to answer the query. Rather, you need to define the
-best-fit search query so that you can retrieve from the Web the
-information needed to construct the answer.
-
-TASK:
-
-Define the search query to answer the following question:
----------------------
-{{ question_str }}
----------------------
-
-FORMAT:
-
-use the following format to produce the query:
-question: here the requested question.
-query: here the search query.
-
-EXAMPLES:
-
-question: When was Abraham Lincoln born?
-query: Abraham Lincoln
-
-question: How many employees does Accenture have?
-query: Accenture
-
-question: What is Intel's core business?
-query: Intel
-
-"""
-
-WEB_CRAWLING_QUERY_PROMPT_STR = """
 What does {{ company_name }} do?
 """
 

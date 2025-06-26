@@ -37,7 +37,22 @@ TOKEN_SPLITTER_CHUNK_SIZE = int(os.environ.get("TOKEN_SPLITTER_CHUNK_SIZE", 1024
 TOKEN_SPLITTER_CHUNK_OVERLAP = int(os.environ.get("TOKEN_SPLITTER_CHUNK_OVERLAP", 100))
 TOKEN_SPLITTER_MODEL_NAME = os.environ.get("TOKEN_SPLITTER_MODEL_NAME", "o200k_base")
 
+EMBEDDING_TOKEN_DOLLAR_PRICE_PER_1M = float(
+    os.environ.get("EMBEDDING_TOKEN_DOLLAR_PRICE_PER_1M", 20)
+)
+
+PROMPT_TOKEN_DOLLAR_PRICE_PER_1M = float(
+    os.environ.get("TOKEN_DOLLAR_PRICE_PER_1M", 0.075)
+)
+COMPLETITION_TOKEN_DOLLAR_PRICE_PER_1M = float(
+    os.environ.get("TOKEN_DOLLAR_PRICE_PER_1M", 0.3)
+)
+
 # Import DuckDuckGo Env Variables
 DUCKDUCKGO_CERTIFICATE_PATH = os.environ.get("DUCKDUCKGO_CERTIFICATE_PATH",
                                              "/Users/a473589/.certificates/global_certificates.pem")
 DUCKDUCKGO_MAX_RESULTS = int(os.environ.get("DUCKDUCKGO_MAX_RESULTS", 5))
+
+#  Import top K companies and MG
+TOP_K_URLS = int(os.environ.get("TOP_K_URLS", 10))
+TOP_K_MG = int(os.environ.get("TOP_K_MG", 10))

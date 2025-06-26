@@ -2,6 +2,7 @@
 import dataclasses
 
 import pandas as pd
+from llama_index.core.bridge.pydantic import BaseModel, Field
 
 
 def company_validator(company: str) -> str:
@@ -157,3 +158,52 @@ class WebSearchConfigData:
         self.n_pages = n_pages_validator(self.n_pages)
         self.search_url = search_url_validator(self.search_url)
         self.headers = headers_validator(self.headers)
+
+
+# Pydantic data structures
+class CompanySearchQueryDefinitionFormat(BaseModel):
+    """Format used to get llm validation output
+
+        Parameters
+        ----------
+        obj : type
+
+        Returns
+        -------
+        obj : type
+            description
+        """
+
+    company_name: str = Field(description="The company name")
+    company_core_business: str = Field(description="The company core business")
+
+
+class WebSearchQueryDefinitionFormat(BaseModel):
+    """description
+
+    Parameters
+    ----------
+    obj : type
+
+    Returns
+    -------
+    obj : type
+    """
+
+    question: str = Field(description="The question")
+    query: str = Field(description="The search engine query")
+
+
+class MGSearchQueryDefinitionFormat(BaseModel):
+    """Format used to get llm validation output"""
+
+    output: list[list[str]] = Field(
+        description="List of most similar MGs to the company description.",
+        example=[
+            """
+            [
+                ["Red products", "Red products are a key focus for this company."],
+                ["Red services", "The company has a strong presence in the red market."]
+            ]
+            """,
+        ])

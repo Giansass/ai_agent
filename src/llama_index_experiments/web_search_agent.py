@@ -7,7 +7,6 @@ import tiktoken
 import validators
 from duckduckgo_search import DDGS
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
-from llama_index.core.bridge.pydantic import BaseModel, Field
 from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter, TokenTextSplitter
@@ -29,7 +28,11 @@ from phoenix.otel import register
 
 from src.llama_index_experiments.llm_load import llm_text_embedding, llm_text_generation
 from src.utils.bing_search_loader import bing_search
-from src.utils.custom_dataclass import WebSearchConfigData, WebSearchQueryData
+from src.utils.custom_dataclass import (  # WebSearchQueryDefinitionFormat
+    CompanySearchQueryDefinitionFormat,
+    WebSearchConfigData,
+    WebSearchQueryData,
+)
 from src.utils.env_var_loader import (
     BING_FROM_DATE,
     BING_HEADERS,
@@ -42,26 +45,28 @@ from src.utils.env_var_loader import (
     TOKEN_SPLITTER_CHUNK_OVERLAP,
     TOKEN_SPLITTER_CHUNK_SIZE,
     TOKEN_SPLITTER_MODEL_NAME,
+    TOP_K_MG,
+    TOP_K_URLS,
     WEB_SEARCH_ENGINE,
     WORKFLOW_TIMEOUT,
 )
+from src.utils.gm_data_loader import GMDataLoader
 from src.utils.prompts import (
     CORE_BSN_QUERY_PROMPT_TEMPLATE_STR,
-    WEB_CRAWLING_QUERY_PROMPT_STR,
+    WEB_SEARCH_QUERY_PROMPT_STR,
 )
+from src.utils.token_counter_and_price import print_token_usage
 from src.utils.web_contents_validator import web_contents_validator
 
 # Set phoenix observability monitor
 tracer_provider = register(
     endpoint=PHOENIX_COLLECTOR_ENDPOINT,
     project_name="Web search agent")
-
 LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 # Create prompts
 core_bsn_query_prompt_tmpl = RichPromptTemplate(CORE_BSN_QUERY_PROMPT_TEMPLATE_STR)
-# web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
-web_crawling_query_prompt_tmpl = RichPromptTemplate(WEB_CRAWLING_QUERY_PROMPT_STR)
+web_search_query_prompt_tmpl = RichPromptTemplate(WEB_SEARCH_QUERY_PROMPT_STR)
 
 # Web content loader
 web_content_loader = BeautifulSoupWebReader()
@@ -78,6 +83,11 @@ token_counter = TokenCountingHandler(
 
 Settings.callback_manager = CallbackManager([token_counter])
 token_counter.reset_counts()
+
+# Define the Pydantic output parser used to validate the LLM output
+pydantic_output_parser = PydanticOutputParser(
+    output_cls=CompanySearchQueryDefinitionFormat
+)
 
 
 # Event definitions
@@ -159,45 +169,6 @@ class _UrlContentStoringEvent(Event):
     query: str
 
 
-# Pydantic data structures
-class CompanySearchQueryDefinitionFormat(BaseModel):
-    """Format used to get llm validation output
-
-        Parameters
-        ----------
-        obj : type
-
-        Returns
-        -------
-        obj : type
-            description
-        """
-
-    company_name: str = Field(description="The company name")
-    company_core_business: str = Field(description="The company core business")
-
-
-pydantic_output_parser = PydanticOutputParser(
-    output_cls=CompanySearchQueryDefinitionFormat
-)
-
-
-class WebSearchQueryDefinitionFormat(BaseModel):
-    """description
-
-    Parameters
-    ----------
-    obj : type
-
-    Returns
-    -------
-    obj : type
-    """
-
-    question: str = Field(description="The question")
-    query: str = Field(description="The search engine query")
-
-
 class TextCleaner(TransformComponent):
     """description
 
@@ -229,11 +200,20 @@ chroma_collection = db2.get_or_create_collection("sample_collection")
 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 index = VectorStoreIndex.from_vector_store(vector_store, embed_model=llm_text_embedding)
 query_engine = index.as_query_engine(
-    similarity_top_k=1,
+    similarity_top_k=TOP_K_URLS,
     vector_store_query_mode="default",
     llm=llm_text_generation,
     output_parser=pydantic_output_parser
 )
+
+# Load GM data loader
+gm_loader = GMDataLoader(
+                    chromadb_path=".storage/chroma/gm_descriptions",
+                    chromadb_collection_name="gm_definition_collection",
+                    llm_emb=llm_text_embedding,
+                    llm_gen=llm_text_generation,
+                    top_k=TOP_K_MG
+                )
 
 
 class WebSearchWorkflow(Workflow):
@@ -261,25 +241,31 @@ class WebSearchWorkflow(Workflow):
             _StopEvent otherwise.
         """
 
-        retrieved_output = query_engine.query(
+        company_description = query_engine.query(
                                 core_bsn_query_prompt_tmpl.format(
                                     company_name=ev.query
                                     )
                                 ).response.strip()  # type: ignore
 
-        n_tokens = f"""
-        Embedding Tokens: {token_counter.total_embedding_token_count}
-        LLM Prompt Tokens: {token_counter.prompt_llm_token_count}
-        LLM Completion Tokens: {token_counter.completion_llm_token_count}
-        Total LLM Token Count: {token_counter.total_llm_token_count}
-        """
-        print(n_tokens)
+        print(f"Retrieved output: {company_description}\n")
+        print_token_usage(token_counter)
 
         bad_resp = ["Empty Response", "I don't know."]
-        if retrieved_output in bad_resp and ev.first_try:
-            return _UrlSearchEvent(query=ev.query)
+        if company_description in bad_resp:
+            if ev.first_try:
+                return _UrlSearchEvent(query=ev.query)
 
-        return _StopEvent(query=retrieved_output)
+            query = "No contents found. Not able to answer the question"
+            return _StopEvent(query=query)
+
+        print("Searching for similar MGs...")
+        token_counter.reset_counts()
+        gm_loader.main(company_description)
+        print_token_usage(token_counter)
+
+        print("Similar MGs found.")
+
+        return _StopEvent(query=company_description)
 
     @step()
     async def get_web_url(
@@ -315,18 +301,12 @@ class WebSearchWorkflow(Workflow):
 
         if WEB_SEARCH_ENGINE == "DuckDuckGo":
 
-            # import os
-            # print(os.environ.get("REQUESTS_CA_BUNDLE"))
-            # print(os.environ.get("SSL_CERT_FILE"))
-            # print('aaa')
-            # xfvxff
-
             # DuckDuckGo Search API
             start_time = time.time()
             print(f"Web crawling started for {web_search_query.company}...")
 
             # Prepare the query
-            duckduck_go_query = web_crawling_query_prompt_tmpl.format(
+            duckduck_go_query = web_search_query_prompt_tmpl.format(
                                     company_name=web_search_query.company
                                 ).strip()
 
@@ -408,7 +388,7 @@ class WebSearchWorkflow(Workflow):
         urls_to_prc = await ctx.get("urls to prc")
 
         start_time = time.time()
-        web_documents = web_content_loader\
+        web_documents = web_content_loader \
             .load_data(urls=urls_to_prc)
         end_time = time.time()
         print(f"Web scraping took {end_time - start_time:.2f} seconds.")
@@ -424,11 +404,8 @@ class WebSearchWorkflow(Workflow):
         end_time = time.time()
         print(f"Pipeline setup took {end_time - start_time:.2f} seconds.")
 
-        print(3)
         # run the pipeline
         nodes = pipeline.run(documents=web_documents, show_progress=True)
-        # Da fare, inserire anche il body in web document e assicurarsi che
-        # sia ben letto da chromadb e dal llm
 
         await ctx.set(key="nodes", value=nodes)
         return _UrlContentStoringEvent(query=ev.query)
@@ -468,6 +445,5 @@ class WebSearchWorkflow(Workflow):
 async def web_search_workflow_execution():
     """The function is intended to execute the workflow through the __main__ script
     and print the results."""
-    w = WebSearchWorkflow(timeout=WORKFLOW_TIMEOUT, verbose=True)
-    response = await w.run(query="Vodafone", first_try=True)
-    print(response)
+    w = WebSearchWorkflow(timeout=WORKFLOW_TIMEOUT, verbose=False)
+    _ = await w.run(query="Reply S.p.A.", first_try=True)

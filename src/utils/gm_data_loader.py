@@ -5,44 +5,18 @@ from typing import Optional
 
 import chromadb
 import pandas as pd
-import tiktoken
-from llama_index.core import Settings, StorageContext, VectorStoreIndex
-from llama_index.core.bridge.pydantic import BaseModel, Field
-from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
+from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.core.output_parsers import PydanticOutputParser
 from llama_index.core.prompts import RichPromptTemplate
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from src.llama_index_experiments.llm_load import llm_text_embedding, llm_text_generation
-from src.utils.env_var_loader import TOKEN_SPLITTER_MODEL_NAME
+from src.utils.custom_dataclass import MGSearchQueryDefinitionFormat
 from src.utils.prompts import FIND_SIMILAR_MG_QUERY_PROMPT_STR
 
-SIMILAR_MGS_QUERY_PROMPT_TMPL = RichPromptTemplate(FIND_SIMILAR_MG_QUERY_PROMPT_STR)
-INGEST_DATA = False
-COMPANY_DESCRIPTION = """
-    SOMI Impianti S.r.l. offers comprehensive solutions for the Oil and Gas industry.
-    It is a leading turnkey power plant developer, providing industrial solutions for
-    the installation of various equipment. The company also offers a wide range of
-    oilfield products and manufacturing services, including the manufacturing and
-    erection of oil and gas pipes. Additionally, SOMI provides industrial demolition
-    services.
-    """
-
-
-class MGSearchQueryDefinitionFormat(BaseModel):
-    """Format used to get llm validation output"""
-
-    output: list[list[str]] = Field(
-        description="List of most similar MGs to the company description.",
-        example=[
-            """
-            [
-                ["Red products", "Red products are a key focus for this company."],
-                ["Red services", "The company has a strong presence in the red market."]
-            ]
-            """,
-        ])
+# Define the prompt template for finding similar MGs
+similar_mgs_query_prompt_tmpl = RichPromptTemplate(FIND_SIMILAR_MG_QUERY_PROMPT_STR)
 
 
 class GMDataLoader:
@@ -93,14 +67,6 @@ class GMDataLoader:
 
         # Create a retriever from the index
         self.retriever = self.index.as_retriever(similarity_top_k=self.top_k)
-
-        # Initialize the token counter
-        self.token_counter = TokenCountingHandler(
-            tokenizer=tiktoken.get_encoding(TOKEN_SPLITTER_MODEL_NAME).encode
-        )
-
-        Settings.callback_manager = CallbackManager([self.token_counter])
-        self.token_counter.reset_counts()
 
     def _extract_gm_from_excel(self,
                                input_file):
@@ -181,7 +147,7 @@ class GMDataLoader:
             raise ValueError("Company description cannot be empty.")
 
         # Find most similar documents
-        query = SIMILAR_MGS_QUERY_PROMPT_TMPL.format(
+        query = similar_mgs_query_prompt_tmpl.format(
                     company_description=company_description
                 ).strip()
 
@@ -191,7 +157,6 @@ class GMDataLoader:
 
         print("\t Similar MGs used by the LLM:")
         for node in similar_nodes:
-
             text = node.text.strip()
             if len(text) > 100:
                 text = text[:100] + "..."
@@ -202,14 +167,6 @@ class GMDataLoader:
         print("\t Retrieving output using the query engine...")
         answer = self.query_engine.query(query).response.strip()
         print("\t Output retrieved successfully.")
-
-        n_tokens = f"""
-        > Embedding Tokens: {self.token_counter.total_embedding_token_count}
-        > LLM Prompt Tokens: {self.token_counter.prompt_llm_token_count}
-        > LLM Completion Tokens: {self.token_counter.completion_llm_token_count}
-        > Total LLM Token Count: {self.token_counter.total_llm_token_count}
-        """
-        print(n_tokens)
 
         return similar_nodes, answer
 
@@ -295,6 +252,12 @@ class GMDataLoader:
 
 
 if __name__ == "__main__":
+
+    INGEST_DATA = False
+    COMPANY_DESCRIPTION = """Jabra produces high-quality audio and video solutions
+    for businesses and consumers. Their products include headsets, speakerphones,
+    and video conferencing systems. Jabra is known for its innovative technology and
+    commitment to delivering exceptional sound quality."""
 
     # Create the GMDataLoader instance
     print("Initializing GMDataLoader...\n")
